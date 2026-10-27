@@ -11,6 +11,7 @@ import {
     type RecordingListHandle,
 } from "@/components/dashboard/recording-list";
 import { ShortcutsDialog } from "@/components/dashboard/shortcuts-dialog";
+import { TranscriptionProgressBanner } from "@/components/dashboard/transcription-progress-banner";
 import { TrialBanner } from "@/components/dashboard/trial-banner";
 import { WorkstationDetailPane } from "@/components/dashboard/workstation-detail-pane";
 import { WorkstationEmptyState } from "@/components/dashboard/workstation-empty-state";
@@ -356,6 +357,8 @@ export function Workstation({
                         show={showReconnect}
                         onReconnected={handleReconnected}
                     />
+
+                    <TranscriptionProgressBanner onFinished={refresh} />
 
                     {visibleRecordings.length === 0 &&
                     pendingUploads.length === 0 ? (
