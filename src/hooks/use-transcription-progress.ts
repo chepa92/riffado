@@ -2,32 +2,51 @@
 
 import { useEffect, useRef, useState } from "react";
 
-export interface TranscriptionProgress {
-    available: boolean;
-    running: { elapsedSeconds: number; megabytes: number }[];
+export interface TranscriptionJob {
+    id: string;
+    name: string | null;
+    state: "queued" | "running";
+    elapsedSeconds: number;
+    megabytes: number;
     progress: number | null;
+    durationSeconds: number | null;
+    /** Estimated seconds until this job is finished. */
+    etaSeconds: number | null;
+    /** Estimated seconds until a queued job starts. */
+    startsInSeconds: number | null;
 }
 
-const IDLE: TranscriptionProgress = {
-    available: false,
-    running: [],
-    progress: null,
-};
+export interface RecentTranscriptionJob {
+    id: string;
+    name: string | null;
+    state: string;
+    seconds: number;
+    finished: string;
+}
+
+export interface TranscriptionProgress {
+    available: boolean;
+    jobs: TranscriptionJob[];
+    recent: RecentTranscriptionJob[];
+}
+
+const IDLE: TranscriptionProgress = { available: false, jobs: [], recent: [] };
 
 interface Options {
-    /** Called once when a running transcription finishes. */
+    /** Called once when the last active transcription finishes. */
     onFinished?: () => void;
 }
 
 /**
- * Polls the server for the transcription provider's live progress. Because
- * the source of truth is the provider, progress shows up after a reload and
- * in other tabs. Polls fast while a job runs, slowly when idle, and backs off
- * when the provider doesn't report progress.
+ * Polls the server for the transcription provider's live job list. Because
+ * the source of truth is the provider, jobs show up after a reload and in
+ * other tabs. Polls fast while jobs are active, slowly when idle, and backs
+ * off when the provider doesn't report status.
  */
 export function useTranscriptionProgress({ onFinished }: Options = {}) {
     const [state, setState] = useState<TranscriptionProgress>(IDLE);
-    const wasRunning = useRef(false);
+    const wasActive = useRef(false);
+    const refreshNow = useRef<() => void>(() => {});
     const onFinishedRef = useRef(onFinished);
     onFinishedRef.current = onFinished;
 
@@ -36,6 +55,7 @@ export function useTranscriptionProgress({ onFinished }: Options = {}) {
         let timer: ReturnType<typeof setTimeout> | undefined;
 
         const tick = async () => {
+            if (timer) clearTimeout(timer);
             let delay = 5000;
             if (document.visibilityState === "visible") {
                 try {
@@ -46,12 +66,12 @@ export function useTranscriptionProgress({ onFinished }: Options = {}) {
                         const next = (await res.json()) as TranscriptionProgress;
                         if (cancelled) return;
                         setState(next);
-                        const running = next.running.length > 0;
-                        if (wasRunning.current && !running) {
+                        const active = next.jobs.length > 0;
+                        if (wasActive.current && !active) {
                             onFinishedRef.current?.();
                         }
-                        wasRunning.current = running;
-                        delay = !next.available ? 60000 : running ? 2000 : 5000;
+                        wasActive.current = active;
+                        delay = !next.available ? 60000 : active ? 2000 : 5000;
                     }
                 } catch {
                     // Transient network error: try again on the next tick.
@@ -60,6 +80,7 @@ export function useTranscriptionProgress({ onFinished }: Options = {}) {
             if (!cancelled) timer = setTimeout(tick, delay);
         };
 
+        refreshNow.current = tick;
         tick();
         return () => {
             cancelled = true;
@@ -67,5 +88,5 @@ export function useTranscriptionProgress({ onFinished }: Options = {}) {
         };
     }, []);
 
-    return state;
+    return { ...state, refresh: () => refreshNow.current() };
 }
