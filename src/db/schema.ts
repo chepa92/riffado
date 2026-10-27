@@ -291,6 +291,12 @@ export const recordings = pgTable(
         // so payload is ~3–6 KB. Used purely for visualization — no
         // audio reconstruction is possible from these values.
         waveformPeaks: jsonb("waveform_peaks"),
+        // Moments the user marked with the recorder's highlight button, pulled
+        // from Plaud's file detail (`mark_memo`) during sync. JSON array of
+        // `{ timestampMs, type, text }`, sorted by time. Null until synced
+        // (see `marksSyncedAt`); `[]` means synced and none were pressed.
+        marks: jsonb("marks"),
+        marksSyncedAt: timestamp("marks_synced_at"),
         // Soft-delete tombstone. Set when the user deletes a recording from
         // Riffado's UI. Sync skips tombstoned rows so re-syncing from Plaud
         // does not resurrect deleted recordings. The audio file is hard-deleted

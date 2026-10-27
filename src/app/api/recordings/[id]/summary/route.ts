@@ -10,6 +10,7 @@ import {
     userSettings,
 } from "@/db/schema";
 import { buildChatCompletionParams } from "@/lib/ai/chat-completion-params";
+import { buildMarksContext } from "@/lib/ai/marks-context";
 import {
     getAiOutputLanguageDirective,
     getDefaultSummaryPromptConfig,
@@ -21,6 +22,7 @@ import { DEMO_SUMMARIES, isDemoRecordingId } from "@/lib/demo/fixtures";
 import { decrypt } from "@/lib/encryption";
 import { decryptJsonField, decryptText } from "@/lib/encryption/fields";
 import { AppError, apiHandler, ErrorCode } from "@/lib/errors";
+import { readStoredMarks } from "@/lib/plaud/marks";
 import { captureServerEvent } from "@/lib/posthog-server";
 import { upsertEnhancement } from "@/lib/transcription/persist";
 
@@ -181,10 +183,15 @@ export const POST = apiHandler<IdContext>(async (request, context) => {
     // Use a replacement function so `$` sequences in the transcript (e.g.
     // `$1`, `$&`, `$$`) are inserted verbatim instead of being interpreted
     // as `String.prototype.replace` special patterns.
-    const prompt = promptTemplate.replace(
-        "{transcription}",
-        () => transcriptText,
+    // Moments the user flagged with the recorder's highlight button, with the
+    // transcript around each, appended so the summary prioritises them.
+    const marksContext = buildMarksContext(
+        readStoredMarks(recording.marks),
+        transcriptText,
     );
+    const prompt =
+        promptTemplate.replace("{transcription}", () => transcriptText) +
+        marksContext;
 
     const baseSystem =
         "You are a helpful assistant that summarizes audio transcriptions. Always respond with valid JSON only, no markdown formatting or code fences.";

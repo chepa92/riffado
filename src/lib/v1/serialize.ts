@@ -7,7 +7,9 @@ import {
     transcriptions,
     userSettings,
 } from "@/db/schema";
+import { formatClock } from "@/lib/ai/marks-context";
 import { decryptJsonField, decryptText } from "@/lib/encryption/fields";
+import { readStoredMarks } from "@/lib/plaud/marks";
 
 type RecordingRow = typeof recordings.$inferSelect;
 type DeviceRow = typeof plaudDevices.$inferSelect;
@@ -67,6 +69,14 @@ export type V1RecordingDetail = V1Recording & {
      * plus a Plaud-imported one). May hold 0, 1, or more entries. */
     transcripts: V1Transcript[];
     summary: V1Summary | null;
+    /** Moments the user marked with the recorder's highlight button, in order. */
+    marks: {
+        timestamp_ms: number;
+        /** Human-readable offset, `mm:ss` or `h:mm:ss`. */
+        time: string;
+        type: number | null;
+        text: string | null;
+    }[];
 };
 
 function toIso(value: Date): string {
@@ -213,6 +223,12 @@ export function serializeRecordingDetail(
             .map(serializeTranscript)
             .filter((t): t is V1Transcript => t !== null),
         summary: serializeSummary(enhancement),
+        marks: readStoredMarks(recording.marks).map((mark) => ({
+            timestamp_ms: mark.timestampMs,
+            time: formatClock(mark.timestampMs),
+            type: mark.type,
+            text: mark.text,
+        })),
     };
 }
 

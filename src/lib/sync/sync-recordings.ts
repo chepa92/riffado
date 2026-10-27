@@ -28,6 +28,7 @@ import {
     captureServerException,
 } from "@/lib/posthog-server";
 import { createUserStorageProvider } from "@/lib/storage/factory";
+import { syncRecordingMarks } from "@/lib/sync/sync-marks";
 import {
     upsertEnhancement,
     upsertTranscription,
@@ -675,6 +676,10 @@ async function runSyncRecordingsForUser(userId: string): Promise<SyncResult> {
                 result,
             );
         }
+
+        // Pull highlight-button marks for recordings that don't have them yet
+        // (a batch per sync). Never throws out of sync.
+        await syncRecordingMarks(userId, plaudClient);
 
         // Auto-transcribe with the user's own provider. 'plaud_only' skips
         // recordings that received a Plaud transcript (saves AI credits);
